@@ -34,11 +34,14 @@ jobs:
           Stop-Website -Name "Test-CICDJnekins"
           Start-Sleep -Seconds 2
 
-      - name: Enable app_offline.htm
+      - name: Remove app_offline.htm
         shell: powershell
         run: |
-          Set-Content -Path "C:\Users\javad\source\repos\Test-CICDJnekins-publish\app_offline.htm" -Value "<h1>Deploying new version...</h1>"
-          Start-Sleep -Seconds 2
+          $offlineFile = "E:\Applications\ERP-Core-New\app_offline.htm"
+          if (Test-Path $offlineFile) {
+              Remove-Item $offlineFile -Force
+          }
+
 
       - name: Delete old files with retry
         shell: powershell
