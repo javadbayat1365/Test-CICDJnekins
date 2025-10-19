@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+    triggers {
+        githubPush() // فعال کردن Webhook برای اجرا هنگام push در GitHub
+    }
+    
+    environment {
+        DOTNET_ROOT = "C:\\Program Files\\dotnet"
+        SOLUTION_PATH = "C:\\Users\\javad\\source\\repos\\Test-CICDJnekins"
+        PUBLISH_DIR = "C:\\Users\\javad\\source\\repos\\Test-CICDJnekins-publish"
+        IIS_SITE_PATH = "C:\\Users\\javad\\source\\repos\\Test-CICDJnekins-publish"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                //git url: 'https://github.com/javadbayat1365/Test-CICDJnekins.git', branch: 'master'
+                // فقط روی برنچmastern اجرا بشه
+                script {
+                    def branch ='master'// env.BRANCH_NAME?: env.GIT_BRANCH?.replaceAll('origin/', '')
+                    if (branch != 'master') {
+                        error "Skipping build: current branch is '${branch}', expected 'master'"
+                    }
+                }
+                git credentialsId: 'github-token', url: 'https://github.com/javadbayat1365/Test-CICDJnekins.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat "dotnet build %SOLUTION_PATH% --configuration Release"
+            }
+        }
+
+        stage('Publish') {
+            steps {
+                bat "dotnet publish %SOLUTION_PATH% -c Release -o %PUBLISH_DIR%"
+            }
+        }
+
+        stage('Deploy to IIS') {
+            steps {
+                bat """
+                echo Stopping IIS site...
+                powershell -Command "Stop-WebSite -Name 'Test-CICDJnekins'"
+                
+                echo Copying files...
+                robocopy %PUBLISH_DIR% %IIS_SITE_PATH% /MIR
+
+                echo Starting IIS site...
+                powershell -Command "Start-WebSite -Name 'Test-CICDJnekins'"
+                """
+            }
+        }
+    }
+}
