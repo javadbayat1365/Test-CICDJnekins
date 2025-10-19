@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+
+    environment {
+        SOLUTION_PATH = "C:\\Users\\javad\\source\\repos\\Test-CICDJnekins"
+        PUBLISH_DIR = "C:\\Users\\javad\\source\\repos\\Test-CICDJnekins-publish"
+        REMOTE_SHARE = "\\\\192.168.2.72\\DeployFolder"
+        REMOTE_COMPUTER = "192.168.2.72"
+        IIS_SITE_NAME = "CICD-Test"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git credentialsId: 'github-token', url: 'https://github.com/javadbayat1365/Test-CICDJnekins.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat "dotnet build %SOLUTION_PATH% --configuration Release"
+            }
+        }
+
+        stage('Publish') {
+            steps {
+                bat "dotnet publish %SOLUTION_PATH% -c Release -o %PUBLISH_DIR%"
+            }
+        }
+
+        stage('Copy to Remote Share') {
+            steps {
+                echo "Copying published files to remote share..."
+                bat """
+                net use \\192.168.2.72\\DeployFolder /user:titan-diesel\\j.bayat 123456789@
+                robocopy %PUBLISH_DIR% \\192.168.2.72\\DeployFolder /MIR
+                net use \\192.168.2.72\\DeployFolder /delete
+                robocopy %PUBLISH_DIR% %REMOTE_SHARE% /MIR
+                """
+            }
+        }
+
+        stage('Restart IIS Site') {
+            steps {
+                echo "Restarting IIS site on remote server..."
+                powershell """
+                Invoke-Command -ComputerName %REMOTE_COMPUTER% -ScriptBlock {
+                    Import-Module WebAdministration
+                    Stop-WebSite -Name '%IIS_SITE_NAME%'
+                    Start-WebSite -Name '%IIS_SITE_NAME%'
+                }
+                """
+            }
+        }
+    }
+}
