@@ -29,6 +29,7 @@ jobs:
           Import-Module WebAdministration
           Stop-WebAppPool -Name "Test-CICDJnekins"
           Stop-Website -Name "Test-CICDJnekins"
+          Start-Sleep -Seconds 2
         shell: powershell
 
       - name: Deploy to IIS folder
