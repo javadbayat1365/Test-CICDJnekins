@@ -1,4 +1,4 @@
-name: Deploy to Internal IIS
+name: Deploy ERP-Core to IIS
 
 on:
   push:
@@ -19,27 +19,55 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore dependencies
+        shell: powershell
         run: dotnet restore
 
       - name: Build project
+        shell: powershell
         run: dotnet publish -c Release -o publish_output
 
-      - name: Stop IIS site
+      - name: Stop IIS site and App Pool
+        shell: powershell
         run: |
           Import-Module WebAdministration
           Stop-WebAppPool -Name "Test-CICDJnekins"
           Stop-Website -Name "Test-CICDJnekins"
           Start-Sleep -Seconds 2
-        shell: powershell
 
-      - name: Deploy to IIS folder
+      - name: Enable app_offline.htm
+        shell: powershell
         run: |
-          Remove-Item -Recurse -Force "C:\Users\javad\source\repos\Test-CICDJnekins-publish\*" 
-          Copy-Item -Path "publish_output\*" -Destination "C:\Users\javad\source\repos\Test-CICDJnekins-publish" -Recurse
-        shell: powershell
+          Set-Content -Path "C:\Users\javad\source\repos\Test-CICDJnekins-publish\app_offline.htm" -Value "<h1>Deploying new version...</h1>"
+          Start-Sleep -Seconds 2
 
-      - name: Start IIS site
+      - name: Delete old files with retry
+        shell: powershell
+        run: |
+          $path = "C:\Users\javad\source\repos\Test-CICDJnekins-publish\*"
+          $maxRetries = 5
+          $retry = 0
+          while ($retry -lt $maxRetries) {
+              try {
+                  Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
+                  break
+              } catch {
+                  Write-Host "Failed to delete files, retrying in 2s..."
+                  Start-Sleep -Seconds 2
+                  $retry++
+              }
+          }
+
+      - name: Copy new files
+        shell: powershell
+        run: |
+          Copy-Item -Path "publish_output\*" -Destination "C:\Users\javad\source\repos\Test-CICDJnekins-publish" -Recurse -Force
+
+      - name: Remove app_offline.htm
+        shell: powershell
+        run: Remove-Item "C:\Users\javad\source\repos\Test-CICDJnekins-publish\app_offline.htm" -Force
+
+      - name: Start IIS site and App Pool
+        shell: powershell
         run: |
           Start-WebAppPool -Name "Test-CICDJnekins"
           Start-Website -Name "Test-CICDJnekins"
-        shell: powershell
